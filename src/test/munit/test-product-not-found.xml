@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd 
+        http://www.mulesoft.org/schema/mule/core
+        http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit
+        http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools
+        http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+    <munit:config name="test-product-not-found.xml"/>
+
+    <munit:test
+        name="test-product-not-found-post:\orders\:application\json\:smartorder-configTest"
+        description="Test Product Not Found">
+
+        <munit:behavior>
+
+            <!-- Request with non-existing product -->
+            <munit:set-event doc:name="Set Event">
+
+                <munit:payload
+                    value='#[%dw 2.0
+output application/json
+---
+{
+    customer: {
+        name: "Tehazeeb",
+        email: "tehazeeb@example.com"
+    },
+    productId: "P999",
+    quantity: 2
+}]'
+                    encoding="UTF-8"
+                    mediaType="application/json"/>
+
+            </munit:set-event>
+
+
+            <!-- Mock Product API -->
+            <!-- Return null because P999 does not exist -->
+
+            <munit-tools:mock-when
+                doc:name="Mock Product API"
+                processor="http:request">
+
+                <munit-tools:with-attributes>
+
+                    <munit-tools:with-attribute
+                        whereValue="GET"
+                        attributeName="method"/>
+
+                </munit-tools:with-attributes>
+
+                <munit-tools:then-return>
+
+                    <munit-tools:payload
+                        value="#[null]"
+                        mediaType="application/json"
+                        encoding="UTF-8"/>
+
+                </munit-tools:then-return>
+
+            </munit-tools:mock-when>
+
+        </munit:behavior>
+
+
+        <munit:execution>
+
+            <flow-ref
+                doc:name="Flow-ref to post:\orders\:application\json\:smartorder-config"
+                name="post:\orders:application\json:smartorder-config" doc:id="34910dc9-d478-4d51-a1c6-d09eee2e4ba8"/>
+
+        </munit:execution>
+
+
+        <munit:validation>
+
+            <munit-tools:assert-that
+                doc:name="Assert Product Not Found"
+                expression="#[payload.errorCode]"
+                is='#[MunitTools::equalTo("PRODUCT_NOT_FOUND")]'/>
+
+        </munit:validation>
+
+    </munit:test>
+
+</mule>

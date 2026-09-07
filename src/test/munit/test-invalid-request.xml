@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+    <munit:config name="test-invalid-request.xml"/>
+
+    <munit:test
+        name="test-invalid-request-post:\orders\:application\json\:smartorder-configTest"
+        doc:id="df1fc68f-3669-48e7-b745-dc25f1614860"
+        description="Test Invalid Request">
+
+        <munit:behavior>
+
+            <!-- Invalid Order Request -->
+            <!-- quantity = 0 -->
+
+            <munit:set-event
+                doc:name="Set Event"
+                doc:id="1fe7b2f3-43ac-4919-a8d2-d1888ee8d2d7">
+
+                <munit:payload
+                    value='#[%dw 2.0
+output application/json
+---
+{
+    customer: {
+        name: "Tehazeeb",
+        email: "tehazeeb@example.com"
+    },
+    productId: "P101",
+    quantity: 0
+}]'
+                    encoding="UTF-8"
+                    mediaType="application/json"/>
+
+            </munit:set-event>
+
+        </munit:behavior>
+
+
+        <munit:execution>
+
+            <flow-ref
+                doc:name="Flow-ref to post:\orders\:application\json\:smartorder-config"
+                doc:id="203780fe-03b5-4912-b811-0f25f4139d86"
+                name="post:\orders:application\json:smartorder-config"/>
+
+        </munit:execution>
+
+
+        <munit:validation>
+
+            <munit-tools:assert-that
+    doc:name="Assert Invalid Request"
+    expression="#[payload.errorCode]"
+    is='#[MunitTools::equalTo("INVALID_REQUEST")]'/>
+
+        </munit:validation>
+
+    </munit:test>
+
+</mule>

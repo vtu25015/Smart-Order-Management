@@ -1,0 +1,153 @@
+#%RAML 1.0
+title: SmartOrder API
+version: v1
+baseUri: http://localhost:8081/api
+mediaType: application/json
+
+types:
+
+  Customer:
+    type: object
+    properties:
+      name:
+        type: string
+        required: true
+      email:
+        type: string
+        required: true
+
+  OrderRequest:
+    type: object
+    properties:
+      customer:
+        type: Customer
+        required: true
+      productId:
+        type: string
+        required: true
+      quantity:
+        type: integer
+        required: true
+        minimum: 1
+
+  OrderResponse:
+    type: object
+    properties:
+      success:
+        type: boolean
+      orderId:
+        type: string
+      productId:
+        type: string
+      productName:
+        type: string
+      quantity:
+        type: integer
+      subtotal:
+        type: number
+      discount:
+        type: number
+      totalAmount:
+        type: number
+      notificationStatus:
+        type: string
+
+  ErrorResponse:
+    type: object
+    properties:
+      success:
+        type: boolean
+      errorCode:
+        type: string
+      message:
+        type: string
+
+/orders:
+
+  post:
+    description: Create a new customer order
+    body:
+      application/json:
+        type: OrderRequest
+        example:
+          {
+            "customer": {
+              "name": "Tehazeeb",
+              "email": "tehazeeb@example.com"
+            },
+            "productId": "P101",
+            "quantity": 2
+          }
+
+    responses:
+      201:
+        body:
+          application/json:
+            type: OrderResponse
+            example:
+              {
+                "success": true,
+                "orderId": "ORD1001",
+                "productId": "P101",
+                "productName": "Laptop",
+                "quantity": 2,
+                "subtotal": 100000,
+                "discount": 10000,
+                "totalAmount": 90000,
+                "notificationStatus": "SENT"
+              }
+
+      400:
+        body:
+          application/json:
+            type: ErrorResponse
+            example:
+              {
+                "success": false,
+                "errorCode": "INVALID_ORDER",
+                "message": "Invalid order details"
+              }
+
+      404:
+        body:
+          application/json:
+            type: ErrorResponse
+            example:
+              {
+                "success": false,
+                "errorCode": "PRODUCT_NOT_FOUND",
+                "message": "Product not found"
+              }
+
+      409:
+        body:
+          application/json:
+            type: ErrorResponse
+            example:
+              {
+                "success": false,
+                "errorCode": "INSUFFICIENT_STOCK",
+                "message": "Requested quantity is greater than available stock"
+              }
+
+      502:
+        body:
+          application/json:
+            type: ErrorResponse
+            example:
+              {
+                "success": false,
+                "errorCode": "EXTERNAL_API_FAILURE",
+                "message": "External service is unavailable"
+              }
+
+      500:
+        body:
+          application/json:
+            type: ErrorResponse
+            example:
+              {
+                "success": false,
+                "errorCode": "INTERNAL_SERVER_ERROR",
+                "message": "Unexpected error occurred"
+              }

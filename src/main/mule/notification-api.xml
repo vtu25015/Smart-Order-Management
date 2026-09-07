@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+        http://www.mulesoft.org/schema/mule/core
+        http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http
+        http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+        http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ===================================================== -->
+    <!-- NOTIFICATION API FLOW                                -->
+    <!-- ===================================================== -->
+
+    <flow name="notification-apiFlow"
+          doc:id="ab7e9daa-a816-4e0c-98fb-e2d65cb05ebd">
+
+        <http:listener
+            doc:name="Listener"
+            doc:id="693cc7e4-da7e-4d23-aba2-10266c78278d"
+            config-ref="smartorder-httpListenerConfig"
+            path="/notifications"/>
+
+        <ee:transform
+            doc:name="Transform Message"
+            doc:id="79cb4b4d-482e-4d40-b7c3-154133605229">
+
+            <ee:message>
+
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+{
+    success: true,
+    notificationStatus: "SENT",
+    message: "Order confirmation notification sent successfully",
+    recipient: payload.email,
+    orderId: payload.orderId
+}
+                ]]></ee:set-payload>
+
+            </ee:message>
+
+        </ee:transform>
+
+    </flow>
+
+</mule>

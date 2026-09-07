@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+      xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd 
+        http://www.mulesoft.org/schema/mule/core
+        http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+
+        http://www.mulesoft.org/schema/mule/munit
+        http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+
+        http://www.mulesoft.org/schema/mule/munit-tools
+        http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+    <munit:config name="test-insufficient-stock.xml"/>
+
+    <munit:test
+        name="test-insufficient-stock-post:\orders\:application\json\:smartorder-configTest"
+        doc:id="b1152fef-a6f9-4909-886c-e3957fda601e"
+        description="Test insufficient stock" ignore="false">
+
+        <!-- ========================= -->
+        <!-- TEST INPUT / MOCKS        -->
+        <!-- ========================= -->
+
+        <munit:behavior>
+
+            <!-- Input order -->
+            <munit:set-event
+                doc:name="Set Event"
+                doc:id="627bb8c8-e86b-4fa5-b500-86ca69839044">
+
+                <munit:payload
+                    value='#[%dw 2.0
+output application/json
+---
+{
+    customer: {
+        name: "Tehazeeb",
+        email: "tehazeeb@example.com"
+    },
+    productId: "P101",
+    quantity: 20
+}]'
+                    encoding="UTF-8"
+                    mediaType="application/json"/>
+
+            </munit:set-event>
+
+
+            <!-- ========================= -->
+            <!-- MOCK PRODUCT API           -->
+            <!-- ========================= -->
+
+            <munit-tools:mock-when
+                doc:name="Mock Product API"
+                doc:id="89365be3-100e-4b5b-be58-cdb7a250a5b6"
+                processor="http:request">
+
+                <munit-tools:with-attributes>
+
+                    <!-- Match only HTTP GET -->
+                    <munit-tools:with-attribute
+                        whereValue="GET"
+                        attributeName="method"/>
+
+                </munit-tools:with-attributes>
+
+                <munit-tools:then-return>
+
+                    <!-- Fake Product API response -->
+                    <munit-tools:payload
+                        value='#[%dw 2.0
+output application/json
+---
+{
+    productId: "P101",
+    name: "Laptop",
+    price: 50000,
+    availableStock: 10
+}]'
+                        mediaType="application/json"
+                        encoding="UTF-8"/>
+
+                </munit-tools:then-return>
+
+            </munit-tools:mock-when>
+
+        </munit:behavior>
+
+
+        <!-- ========================= -->
+        <!-- EXECUTE MAIN FLOW          -->
+        <!-- ========================= -->
+
+        <munit:execution>
+
+            <flow-ref
+                doc:name="Flow-ref to post:\orders\:application\json\:smartorder-config"
+                doc:id="fbfc1767-0129-47de-b169-3e04091cae66"
+                name="post:\orders:application\json:smartorder-config"/>
+
+        </munit:execution>
+
+
+        <!-- ========================= -->
+        <!-- VALIDATION                 -->
+        <!-- ========================= -->
+
+        <munit:validation>
+
+            <munit-tools:assert-that
+                doc:name="Assert Insufficient Stock"
+                doc:id="0096bdaf-5619-46f7-ac30-0b845b8dde2a"
+                expression="#[payload.errorCode]"
+                is='#[MunitTools::equalTo("INSUFFICIENT_STOCK")]'/>
+
+        </munit:validation>
+
+    </munit:test>
+
+</mule>

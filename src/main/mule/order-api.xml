@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+        http://www.mulesoft.org/schema/mule/core
+        http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http
+        http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core
+        http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <!-- ===================================================== -->
+    <!-- ORDER API FLOW                                        -->
+    <!-- ===================================================== -->
+
+    <flow name="order-apiFlow"
+          doc:id="d9d32763-ceeb-4e19-a37d-cfb2e28081f1">
+
+        <http:listener
+            doc:name="Listener"
+            doc:id="04eae563-0fc7-4ddc-ac16-adcd2174131f"
+            config-ref="smartorder-httpListenerConfig"
+            path="/orders"/>
+
+        <ee:transform
+            doc:name="Transform Message"
+            doc:id="8bdcb0eb-be49-4564-8773-e938ccc5fc5a">
+
+            <ee:message>
+
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+
+var orderId = "ORD" ++ (randomInt(9000) + 1000) as String
+
+---
+{
+    success: true,
+    orderId: orderId,
+    productId: payload.productId,
+    productName: payload.productName,
+    quantity: payload.quantity,
+    subtotal: payload.subtotal,
+    discount: payload.discount,
+    totalAmount: payload.totalAmount,
+    status: "CONFIRMED"
+}
+                ]]></ee:set-payload>
+
+            </ee:message>
+
+        </ee:transform>
+
+    </flow>
+
+</mule>

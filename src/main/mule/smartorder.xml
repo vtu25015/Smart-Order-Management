@@ -1,0 +1,431 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+
+    <configuration-properties file="application.properties"/>
+
+    <!-- HTTP LISTENER CONFIGURATION -->
+    <http:listener-config
+        name="smartorder-httpListenerConfig"
+        doc:name="SmartOrder HTTP Listener">
+
+        <http:listener-connection
+            host="0.0.0.0"
+            port="${http.port}"/>
+
+    </http:listener-config>
+
+    <!-- APIKIT CONFIGURATION -->
+    <apikit:config
+        name="smartorder-config"
+        api="smartorder.raml"
+        outboundHeadersMapName="outboundHeaders"
+        httpStatusVarName="httpStatus"/>
+
+    <!-- PRODUCT API REQUEST CONFIG -->
+    <http:request-config
+        name="Product_API_Config"
+        doc:name="Product API Request Configuration">
+
+        <http:request-connection
+            protocol="HTTP"
+            host="localhost"
+            port="${http.port}"/>
+
+    </http:request-config>
+
+    <!-- ORDER API REQUEST CONFIG -->
+    <http:request-config
+        name="Order_API_Config"
+        doc:name="Order API Request Configuration">
+
+        <http:request-connection
+            protocol="HTTP"
+            host="localhost"
+            port="${http.port}"/>
+
+    </http:request-config>
+
+    <!-- NOTIFICATION API REQUEST CONFIG -->
+    <http:request-config
+        name="Notification_API_Config"
+        doc:name="Notification API Request Configuration">
+
+        <http:request-connection
+            protocol="HTTP"
+            host="localhost"
+            port="${http.port}"/>
+
+    </http:request-config>
+
+
+    <!-- MAIN APIKIT FLOW -->
+    <flow name="smartorder-main">
+
+        <http:listener
+            config-ref="smartorder-httpListenerConfig"
+            path="/api/*">
+
+            <http:response
+                statusCode="#[vars.httpStatus default 200]">
+
+                <http:headers>
+                    <![CDATA[#[vars.outboundHeaders default {}]]]>
+                </http:headers>
+
+            </http:response>
+
+            <http:error-response
+                statusCode="#[vars.httpStatus default 500]">
+
+                <http:body>
+                    <![CDATA[#[payload]]]>
+                </http:body>
+
+                <http:headers>
+                    <![CDATA[#[vars.outboundHeaders default {}]]]>
+                </http:headers>
+
+            </http:error-response>
+
+        </http:listener>
+
+        <apikit:router config-ref="smartorder-config"/>
+
+    </flow>
+
+
+    <!-- APIKIT CONSOLE -->
+    <flow name="smartorder-console">
+
+        <http:listener
+            config-ref="smartorder-httpListenerConfig"
+            path="/console/*"/>
+
+        <apikit:console config-ref="smartorder-config"/>
+
+    </flow>
+
+
+    <!-- YOUR ORDER IMPLEMENTATION FLOW -->
+    <flow name="post:\orders:application\json:smartorder-config">
+
+        <set-variable
+            variableName="orderRequest"
+            value="#[payload]"
+            doc:name="Set Variable - orderRequest"/>
+
+        <choice doc:name="Validate Order Request">
+
+            <when expression="#[isEmpty(vars.orderRequest.productId) or vars.orderRequest.quantity &lt;= 0]">
+
+                <ee:transform doc:name="Invalid Request Response">
+
+                    <ee:message>
+
+                        <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+{
+    success: false,
+    errorCode: "INVALID_REQUEST",
+    message: "Invalid order request. Product ID is required and quantity must be greater than 0.",
+    productId: vars.orderRequest.productId,
+    quantity: vars.orderRequest.quantity
+}
+                        ]]></ee:set-payload>
+
+                    </ee:message>
+
+                </ee:transform>
+
+            </when>
+
+            <otherwise>
+
+                <!-- GET PRODUCT -->
+                <http:request
+                    method="GET"
+                    path="#['/products/' ++ vars.orderRequest.productId]"
+                    doc:name="Get Product"
+                    config-ref="Product_API_Config"/>
+
+                <choice doc:name="Check Product">
+
+                    <when expression="#[isEmpty(payload)]">
+
+                        <ee:transform doc:name="Product Not Found Response">
+
+                            <ee:message>
+
+                                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+{
+    success: false,
+    errorCode: "PRODUCT_NOT_FOUND",
+    message: "Product not found",
+    productId: vars.orderRequest.productId
+}
+                                ]]></ee:set-payload>
+
+                            </ee:message>
+
+                        </ee:transform>
+
+                    </when>
+
+                    <otherwise>
+
+                        <choice doc:name="Check Stock">
+
+                            <when expression="#[vars.orderRequest.quantity &lt;= payload.availableStock]">
+
+                                <!-- CALCULATE AMOUNT -->
+                                <ee:transform doc:name="Calculate Order Amount">
+
+                                    <ee:message>
+
+                                        <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+
+var quantity = vars.orderRequest.quantity
+var price = payload.price
+var subtotal = price * quantity
+var discount = if (subtotal > 10000) subtotal * 0.10 else 0
+var totalAmount = subtotal - discount
+
+---
+{
+    success: true,
+    productId: payload.productId,
+    productName: payload.name,
+    quantity: quantity,
+    unitPrice: price,
+    subtotal: subtotal,
+    discount: discount,
+    totalAmount: totalAmount
+}
+                                        ]]></ee:set-payload>
+
+                                    </ee:message>
+
+                                </ee:transform>
+
+
+                                <!-- SAVE ORDER DATA -->
+                                <set-variable
+                                    variableName="orderData"
+                                    value="#[payload]"
+                                    doc:name="Set Variable - orderData"/>
+
+
+                                <!-- CREATE ORDER -->
+                                <http:request
+                                    method="POST"
+                                    config-ref="Order_API_Config"
+                                    path="/orders"
+                                    doc:name="Create Order">
+
+                                    <http:body><![CDATA[
+#[vars.orderData]
+                                    ]]></http:body>
+
+                                </http:request>
+
+
+                                <!-- SAVE ORDER RESPONSE -->
+                                <set-variable
+                                    variableName="orderResponse"
+                                    value="#[payload]"
+                                    doc:name="Set Variable - orderResponse"/>
+
+
+                                <!-- SEND NOTIFICATION -->
+                                <http:request
+                                    method="POST"
+                                    config-ref="Notification_API_Config"
+                                    path="/notifications"
+                                    doc:name="Send Notification">
+
+                                    <http:body><![CDATA[
+#[
+{
+    email: vars.orderRequest.customer.email,
+    orderId: vars.orderResponse.orderId
+}
+]
+                                    ]]></http:body>
+
+                                </http:request>
+
+
+                                <!-- FINAL RESPONSE -->
+                                <ee:transform doc:name="Final Order Response">
+
+                                    <ee:message>
+
+                                        <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+{
+    success: vars.orderResponse.success,
+    orderId: vars.orderResponse.orderId,
+    productId: vars.orderResponse.productId,
+    productName: vars.orderResponse.productName,
+    quantity: vars.orderResponse.quantity,
+    subtotal: vars.orderResponse.subtotal,
+    discount: vars.orderResponse.discount,
+    totalAmount: vars.orderResponse.totalAmount,
+    notificationStatus: payload.notificationStatus
+}
+                                        ]]></ee:set-payload>
+
+                                    </ee:message>
+
+                                </ee:transform>
+
+                            </when>
+
+                            <otherwise>
+
+                                <ee:transform doc:name="Insufficient Stock Response">
+
+                                    <ee:message>
+
+                                        <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+{
+    success: false,
+    errorCode: "INSUFFICIENT_STOCK",
+    message: "Requested quantity is greater than available stock.",
+    productId: vars.orderRequest.productId,
+    requestedQuantity: vars.orderRequest.quantity,
+    availableStock: payload.availableStock
+}
+                                        ]]></ee:set-payload>
+
+                                    </ee:message>
+
+                                </ee:transform>
+
+                            </otherwise>
+
+                        </choice>
+
+                    </otherwise>
+
+                </choice>
+
+            </otherwise>
+
+        </choice>
+
+        <error-handler>
+
+            <on-error-continue
+                enableNotifications="true"
+                logException="true"
+                doc:name="On Error Continue">
+
+                <ee:transform doc:name="Error Response">
+
+                    <ee:message>
+
+                        <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+{
+    success: false,
+    errorCode: "ORDER_PROCESSING_ERROR",
+    message: "Unable to process the order.",
+    productId: vars.orderRequest.productId
+}
+                        ]]></ee:set-payload>
+
+                    </ee:message>
+
+                </ee:transform>
+
+            </on-error-continue>
+
+        </error-handler>
+
+    </flow>
+
+
+    <!-- PRODUCT API FLOW -->
+    <flow name="product-api-flow">
+
+        <http:listener
+            config-ref="smartorder-httpListenerConfig"
+            path="/products/{productId}"
+            doc:name="Product API Listener"/>
+
+        <ee:transform doc:name="Get Product">
+
+            <ee:message>
+
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+
+var productId = attributes.uriParams.productId
+
+var products = {
+    P101: {
+        productId: "P101",
+        name: "Laptop",
+        price: 50000,
+        availableStock: 10
+    },
+    P102: {
+        productId: "P102",
+        name: "Smartphone",
+        price: 25000,
+        availableStock: 5
+    },
+    P103: {
+        productId: "P103",
+        name: "Wireless Mouse",
+        price: 1500,
+        availableStock: 20
+    },
+    P104: {
+        productId: "P104",
+        name: "Keyboard",
+        price: 2500,
+        availableStock: 15
+    }
+}
+
+---
+products[productId] default {}
+                ]]></ee:set-payload>
+
+            </ee:message>
+
+        </ee:transform>
+
+    </flow>
+
+</mule>
